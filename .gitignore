@@ -1,0 +1,8 @@
+*.pyc
+.vscode
+/cf_speedtest.egg-info
+/dist
+/build
+/.tox/dist
+/.tox/log
+/cf_speedtest/utime.exe
