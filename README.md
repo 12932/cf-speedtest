@@ -7,6 +7,11 @@
 [![PyPI status](https://img.shields.io/pypi/status/cf-speedtest.svg)](https://pypi.python.org/pypi/cf-speedtest)
 [![PyPI downloads](https://img.shields.io/pypi/dm/cf-speedtest.svg)](https://pypi.python.org/pypi/cf-speedtest)
 
+## Installation:
+```bash
+$ pip install -U cf-speedtest
+```
+
 ## Basic CLI usage:
 
 - ### Running a normal speedtest:
