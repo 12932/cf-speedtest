@@ -9,8 +9,10 @@ def test_preamble():
 def test_main():
 	assert cf_speedtest.main() == 0
 
+'''
 def test_proxy():
 	assert cf_speedtest.main(['--proxy', '100.24.216.83:80']) == 0
+'''
 
 def test_nossl():
 	assert cf_speedtest.main(['--verifyssl', 'False']) == 0
