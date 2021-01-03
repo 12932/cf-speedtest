@@ -33,7 +33,7 @@
 
 #### TODO:
 	- Programmatic usage
-	- Multi-threadeded speedtest
+	- Multi-threaded speedtest
 	- Continuous mode
 
 #### Disclaimers:
