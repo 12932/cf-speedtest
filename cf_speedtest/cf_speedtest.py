@@ -109,9 +109,9 @@ def preamble() -> str:
 	r = REQ_SESSION.get(DOWNLOAD_ENDPOINT.format(0), verify=VERIFY_SSL,  proxies=PROXY_DICT)
 	r.raise_for_status()
 
-	our_ip 		= r.headers['cf-meta-ip']
-	colo 		= r.headers['cf-meta-colo']
-	server_city = r.headers.get('cf-meta-city') or colo #doesn't exist sometimes?
+	our_ip 		= r.headers.get('cf-meta-ip')
+	colo 		= r.headers.get('cf-meta-colo')
+	server_city = colo
 	server_country = next((loc.get('cca2') or "Unknown" for loc in locations.SERVER_LOCATIONS if loc["iata"] == colo.upper()), "Unknown")
 	preamble_str = f"Your IP:\t{our_ip} ({get_our_country()})\nServer loc:\t{server_city} ({colo}) - ({server_country})"
 
@@ -143,7 +143,7 @@ def run_standard_test(measurement_sizes: list, measurement_percentile: int = 90,
 	UPLOAD_MEASUREMENTS 	= []
 
 	if verbose:
-		print(preamble())
+		print(preamble(), '\n')
 
 	latency_test()  # ignore first request as it contains http connection setup
 	for i in range(0, 20):
@@ -153,18 +153,20 @@ def run_standard_test(measurement_sizes: list, measurement_percentile: int = 90,
 	latency = percentile(LATENCY_MEASUREMENTS, 50)
 	jitter = statistics.stdev(LATENCY_MEASUREMENTS)
 	if verbose:
-		print(f"Latency: {latency:.2f} ms")
-		print(f"Jitter: {jitter:.2f} ms")
-		print("Running tests...")
+		print(f"{'Latency:':<16} {latency:.2f} ms")
+		print(f"{'Jitter:':<16} {jitter:.2f} ms")
+		print("Running speed tests...\n")
 	
 	first_dl_test, first_ul_test = True, True
 	continue_dl_test, continue_ul_test = True, True
+	current_up_speed_mbps = 0
+	current_down_speed_mbps = 0
 
 	# The SLOWEST test should take no longer than 30 seconds
 	for i in range(0, len(measurement_sizes)):
 		measurement = measurement_sizes[i]
 		download_test_count = (-2 * i + 12) 	# this is how the website does it
-		upload_test_count = (-2 * i + 10) 	# this is how the website does it
+		upload_test_count = (-2 * i + 10) 		# this is how the website does it
 		total_download_bytes = measurement * download_test_count
 		total_upload_bytes = measurement * upload_test_count
 
@@ -179,7 +181,8 @@ def run_standard_test(measurement_sizes: list, measurement_percentile: int = 90,
 			DOWNLOAD_MEASUREMENTS += run_tests("down", measurement, download_test_count)
 			current_down_speed_mbps = percentile(DOWNLOAD_MEASUREMENTS, measurement_percentile) / 1_000_000
 			if verbose:
-				print(f"Current down: {current_down_speed_mbps:.2f} Mbit/sec")
+				# print(f"Current down: {current_down_speed_mbps:.2f} Mbit/sec")
+				print(f"{'Current speeds:':<24} {'Down: '}{current_down_speed_mbps:.2f} Mbit/sec\t{'Up: '}{current_up_speed_mbps:.2f} Mbit/sec")
 
 		if not first_ul_test:
 			if current_up_speed_mbps * test_patience < total_upload_bytes / 125000:
@@ -192,7 +195,8 @@ def run_standard_test(measurement_sizes: list, measurement_percentile: int = 90,
 			UPLOAD_MEASUREMENTS += run_tests("up", measurement, upload_test_count)
 			current_up_speed_mbps = percentile(UPLOAD_MEASUREMENTS, measurement_percentile) / 1_000_000
 			if verbose:
-				print(f"Current up: {current_up_speed_mbps:.2f} Mbit/sec")
+				# print(f"Current up: {current_up_speed_mbps:.2f} Mbit/sec")
+				print(f"{'Current speeds:':<24} {'Down: '}{current_down_speed_mbps:.2f} Mbit/sec\t{'Up: '}{current_up_speed_mbps:.2f} Mbit/sec")
 
 	# all raw measurements are in bits per second
 	pctile_download	= percentile(DOWNLOAD_MEASUREMENTS, measurement_percentile)
@@ -210,7 +214,6 @@ def run_standard_test(measurement_sizes: list, measurement_percentile: int = 90,
 		'upload_stdev'			: upload_stdev,
 	}
 
-import pprint
 def main(argv=None) -> int:
 	global PROXY_DICT, VERIFY_SSL, OUTPUT_FILE
 	# disable annoying warning when using verify=False in requests.get("x", verify=False)
@@ -260,8 +263,7 @@ def main(argv=None) -> int:
 	d_s = speeds['download_stdev']
 	u_s = speeds['upload_stdev']
 
-	print(f"{args.percentile}th percentile download speed: {d/1_000_000:.2f} Mbit/sec")
-	print(f"{args.percentile}th percentile upload speed: {u/1_000_000:.2f} Mbit/sec")
+	print(f"{args.percentile}{'th percentile results:':<24} Down: {d/1_000_000:.2f} Mbit/sec\tUp: {u/1_000_000:.2f} Mbit/sec")
 
 	return 0
 
