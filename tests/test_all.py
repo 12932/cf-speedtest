@@ -1,13 +1,13 @@
-from cf_speedtest import cf_speedtest
+from cf_speedtest import speedtest
 
 def test_country():
-	cf_speedtest.get_our_country()
+	speedtest.get_our_country()
 
 def test_preamble():
-	cf_speedtest.preamble()
+	speedtest.preamble()
 
 def test_main():
-	assert cf_speedtest.main() == 0
+	assert speedtest.main() == 0
 
 '''
 def test_proxy():
@@ -15,4 +15,4 @@ def test_proxy():
 '''
 
 def test_nossl():
-	assert cf_speedtest.main(['--verifyssl', 'False']) == 0
+	assert speedtest.main(['--verifyssl', 'False']) == 0
