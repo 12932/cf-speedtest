@@ -9,8 +9,8 @@ from timeit import default_timer as timer
 from typing import Union
 import urllib3
 
-from . import options
-from . import locations
+import cf_speedtest.locations as locations
+import cf_speedtest.options as options
 
 REQ_SESSION = requests.Session()
 
@@ -268,4 +268,4 @@ def main(argv=None) -> int:
 	return 0
 
 if __name__ == '__main__':
-	exit(main())
+	raise SystemExit(main())
