@@ -45,7 +45,10 @@ def get_server_timing(server_timing: str) -> float:
     split = server_timing.split(';')
     for part in split:
         if 'dur=' in part:
-            return float(part.split('=')[1]) / 1000
+            try:
+                return float(part.split('=')[1]) / 1000
+            except:
+                return float(part.split(",")[0].split("=")[1]) / 1000
 
 # given an amount of bytes, upload it and return the elapsed seconds taken
 
