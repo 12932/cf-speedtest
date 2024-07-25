@@ -42,13 +42,16 @@ def percentile(data: list, percentile: int) -> float:
 
 
 def get_server_timing(server_timing: str) -> float:
-    split = server_timing.split(';')
-    for part in split:
+    for part in server_timing.split(';'):
         if 'dur=' in part:
             try:
                 return float(part.split('=')[1]) / 1000
-            except:
-                return float(part.split(",")[0].split("=")[1]) / 1000
+            except (IndexError, ValueError):
+                try:
+                    return float(part.split(',')[0].split('=')[1]) / 1000
+                except (IndexError, ValueError):
+                    pass
+    return 0.0
 
 # given an amount of bytes, upload it and return the elapsed seconds taken
 
