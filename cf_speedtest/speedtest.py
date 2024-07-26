@@ -36,6 +36,8 @@ OUTPUT_FILE = None
 
 def percentile(data: list, percentile: int) -> float:
     size = len(data)
+    if percentile == 0:
+        return min(data)
     return sorted(data)[int(math.ceil((size * percentile) / 100)) - 1]
 
 # returns ms of how long cloudflare took to process the request, this is in the Server-Timing header
