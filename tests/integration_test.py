@@ -17,7 +17,7 @@ def test_country():
 
 @pytest.mark.integration
 def test_preamble():
-    preamble_text = speedtest.preamble()
+    preamble_text = speedtest.preamble(False)
     assert isinstance(preamble_text, str)
     assert 'Your IP:' in preamble_text
     assert 'Server loc:' in preamble_text
