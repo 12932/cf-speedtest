@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import math
 import statistics
+import json
 import time
 from timeit import default_timer as timer
 
@@ -29,6 +30,7 @@ UPLOAD_HEADERS = {
 PROXY_DICT = None
 VERIFY_SSL = True
 OUTPUT_FILE = None
+JSON_STDOUT = {}
 
 # Could use python's statistics library, but quantiles are only available
 # in version 3.8 and above
@@ -143,7 +145,7 @@ def get_our_country() -> str:
     return cgi_dict.get('loc') or 'Unknown'
 
 
-def preamble() -> str:
+def preamble(json_output) -> str:
     r = REQ_SESSION.get(
         DOWNLOAD_ENDPOINT.format(
             0,
@@ -161,9 +163,12 @@ def preamble() -> str:
             ) or 'Unknown' for loc in locations.SERVER_LOCATIONS if loc['iata'] == colo.upper()
         ), 'Unknown',
     )
-    preamble_str = f'Your IP:\t{our_ip} ({get_our_country()})\nServer loc:\t{server_city} ({colo}) - ({server_country})'
-
-    return preamble_str
+    if json_output:
+        JSON_STDOUT['location'] = {'my_ip_addr': our_ip, "country": get_our_country(), 'server_city': server_city,
+          'colocation': colo, 'server_country': server_country}
+    else:
+        preamble_str = f'Your IP:\t{our_ip} ({get_our_country()})\nServer loc:\t{server_city} ({colo}) - ({server_country})'
+        return preamble_str
 
 # runs x amount of y-byte tests, given a test_type ("down" or "up")
 # returns a list of measurements in bits per second
@@ -191,6 +196,8 @@ def run_tests(test_type: str, bytes_to_xfer: int, iteration_count: int = 8) -> l
 
 def run_standard_test(
     measurement_sizes: list,
+    disable_tests_skip: bool,
+    json_output: bool,
     measurement_percentile: int = 90,
     verbose: bool = False,
     test_patience: int = 15,
@@ -200,7 +207,10 @@ def run_standard_test(
     UPLOAD_MEASUREMENTS = []
 
     if verbose:
-        print(preamble(), '\n')
+        if json_output:
+            preamble(json_output)
+        else:
+            print(preamble(json_output), '\n')
 
     latency_test()  # ignore first request as it contains http connection setup
     for i in range(0, 20):
@@ -210,9 +220,13 @@ def run_standard_test(
     latency = percentile(LATENCY_MEASUREMENTS, 50)
     jitter = statistics.stdev(LATENCY_MEASUREMENTS)
     if verbose:
-        print(f"{'Latency:':<16} {latency:.2f} ms")
-        print(f"{'Jitter:':<16} {jitter:.2f} ms")
-        print('Running speed tests...\n')
+        if json_output:
+            JSON_STDOUT['latency'] = f"{latency:.2f}"
+            JSON_STDOUT['jitter'] = f"{jitter:.2f}"
+        else:
+            print(f"{'Latency:':<16} {latency:.2f} ms")
+            print(f"{'Jitter:':<16} {jitter:.2f} ms")
+            print('Running speed tests...\n')
 
     first_dl_test, first_ul_test = True, True
     continue_dl_test, continue_ul_test = True, True
@@ -226,9 +240,11 @@ def run_standard_test(
         upload_test_count = (-2 * i + 10) 		# this is how the website does it
         total_download_bytes = measurement * download_test_count
         total_upload_bytes = measurement * upload_test_count
+        if not 'tests' in JSON_STDOUT:
+            JSON_STDOUT['tests'] = {}
 
         if not first_dl_test:
-            if current_down_speed_mbps * test_patience < total_download_bytes / 125000:
+            if (current_down_speed_mbps * test_patience < total_download_bytes / 125000) and (not disable_tests_skip):
                 continue_dl_test = False
         else:
             first_dl_test = False
@@ -243,14 +259,19 @@ def run_standard_test(
                 DOWNLOAD_MEASUREMENTS, measurement_percentile,
             ) / 1_000_000
             if verbose:
-                # print(f"Current down: {current_down_speed_mbps:.2f} Mbit/sec")
-                print(
-                    f"{'Current speeds:':<24} {'Down: '}{current_down_speed_mbps:.2f} Mbit/sec\t"
-                    f"{'Up: '}{current_up_speed_mbps:.2f} Mbit/sec",
-                )
+                if json_output:
+                    if not str(measurement) in JSON_STDOUT['tests']:
+                        JSON_STDOUT['tests'][str(measurement)] = {}
+                    JSON_STDOUT['tests'][str(measurement)]['download'] = f"{current_down_speed_mbps:.2f}"
+                else:
+                    # print(f"Current down: {current_down_speed_mbps:.2f} Mbit/sec")
+                    print(
+                        f"{'Current speeds:':<24} {'Down: '}{current_down_speed_mbps:.2f} Mbit/sec\t"
+                        f"{'Up: '}{current_up_speed_mbps:.2f} Mbit/sec",
+                    )
 
         if not first_ul_test:
-            if current_up_speed_mbps * test_patience < total_upload_bytes / 125_000:
+            if (current_up_speed_mbps * test_patience < total_upload_bytes / 125_000) and (not disable_tests_skip):
                 continue_ul_test = False
         else:
             first_ul_test = False
@@ -265,11 +286,16 @@ def run_standard_test(
                 UPLOAD_MEASUREMENTS, measurement_percentile,
             ) / 1_000_000
             if verbose:
-                # print(f"Current up: {current_up_speed_mbps:.2f} Mbit/sec")
-                print(
-                    f"{'Current speeds:':<24} {'Down: '}{current_down_speed_mbps:.2f} Mbit/sec\t"
-                    f"{'Up: '}{current_up_speed_mbps:.2f} Mbit/sec",
-                )
+                if json_output:
+                    if not str(measurement) in JSON_STDOUT['tests']:
+                        JSON_STDOUT['tests'][str(measurement)] = {}
+                    JSON_STDOUT['tests'][str(measurement)]['upload'] = f"{current_up_speed_mbps:.2f}"
+                else:
+                    # print(f"Current up: {current_up_speed_mbps:.2f} Mbit/sec")
+                    print(
+                        f"{'Current speeds:':<24} {'Down: '}{current_down_speed_mbps:.2f} Mbit/sec\t"
+                        f"{'Up: '}{current_up_speed_mbps:.2f} Mbit/sec",
+                    )
 
     # all raw measurements are in bits per second
     pctile_download = percentile(DOWNLOAD_MEASUREMENTS, measurement_percentile)
@@ -301,6 +327,8 @@ def main(argv=None) -> int:
     VERIFY_SSL = args.verifyssl
     OUTPUT_FILE = args.output
     patience = args.testpatience
+    disable_tests_skip = args.disableskipping
+    json_output = args.json
     proxy = args.proxy
 
     # clear the output file
@@ -333,17 +361,22 @@ def main(argv=None) -> int:
             250_000_000,
         ]
 
-    speeds = run_standard_test(measurement_sizes, percentile, True, patience)
+    speeds = run_standard_test(measurement_sizes, disable_tests_skip, json_output, percentile, True, patience)
 
     d = speeds['download_speed']
     u = speeds['upload_speed']
     d_s = speeds['download_stdev']  # noqa
     u_s = speeds['upload_stdev']   # noqa
 
-    print(
-        f"{args.percentile}{'th percentile results:':<24} Down: {d/1_000_000:.2f} Mbit/sec\t"
-        f'Up: {u/1_000_000:.2f} Mbit/sec',
-    )
+    if json_output:
+        JSON_STDOUT[f"{args.percentile}_percentile"] = {'download': f"{d/1_000_000:.2f}", 'upload': f"{u/1_000_000:.2f}"}
+        json_string = json.dumps(JSON_STDOUT, indent=4)
+        print(json_string)
+    else:
+        print(
+            f"{args.percentile}{'th percentile results:':<24} Down: {d/1_000_000:.2f} Mbit/sec\t"
+            f'Up: {u/1_000_000:.2f} Mbit/sec',
+        )
 
     return 0
 

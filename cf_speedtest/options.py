@@ -75,4 +75,16 @@ def add_run_options(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         help='The longest time to wait for an individual test to run',
     )
 
+    parser.add_argument(
+        '--disableskipping',
+        action='store_true',
+        help='Dont skip any speed test',
+    )
+
+    parser.add_argument(
+        '--json',
+        action='store_true',
+        help='Output results of tests in JSON format (When using this option, output will be delayed until the execution is finished)',
+    )
+
     return parser
