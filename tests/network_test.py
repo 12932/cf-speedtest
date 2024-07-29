@@ -31,7 +31,7 @@ def test_preamble_unit(mock_requests_session):
     mock_requests_session.get.return_value = mock_response
 
     with patch('cf_speedtest.speedtest.get_our_country', return_value='US'):
-        result = speedtest.preamble()
+        result = speedtest.preamble(False)
         assert '1.2.3.4' in result
         assert 'LAX' in result
         assert 'US' in result

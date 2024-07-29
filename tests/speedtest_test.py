@@ -41,7 +41,7 @@ def test_run_standard_test(mock_preamble, mock_latency_test, mock_run_tests):
     ]
 
     results = speedtest.run_standard_test(
-        [1000000], measurement_percentile=90, verbose=True,
+        [1000000], disable_tests_skip=False, json_output=False, measurement_percentile=90, verbose=True,
     )
 
     assert results['download_speed'] == 200000000
