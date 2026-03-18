@@ -14,8 +14,15 @@ import cf_speedtest.locations as locations
 import cf_speedtest.options as options
 
 REQ_SESSION = requests.Session()
+REQ_SESSION.headers.update(
+    {
+        'Referer': 'https://speed.cloudflare.com/',
+        'Origin': 'https://speed.cloudflare.com',
+    }
+)
 
 CGI_ENDPOINT = 'https://speed.cloudflare.com/cdn-cgi/trace'
+META_ENDPOINT = 'https://speed.cloudflare.com/meta'
 DOWNLOAD_ENDPOINT = 'https://speed.cloudflare.com/__down?measId=0&bytes={}'
 UPLOAD_ENDPOINT = 'https://speed.cloudflare.com/__up?measId=0'
 
@@ -35,65 +42,94 @@ OUTPUT_FILE = None
 
 
 def percentile(data: list, percentile: int) -> float:
+    if not data:
+        return 0.0
     size = len(data)
     return sorted(data)[int(math.ceil((size * percentile) / 100)) - 1]
+
 
 # returns ms of how long cloudflare took to process the request, this is in the Server-Timing header
 
 
-def get_server_timing(server_timing: str) -> float:
+def get_server_timing(server_timing: str | None) -> float:
+    if not server_timing:
+        return 0.0
     split = server_timing.split(';')
     for part in split:
         if 'dur=' in part:
-            return float(part.split('=')[1]) / 1000
+            try:
+                return float(part.split('=')[1]) / 1000
+            except (ValueError, IndexError):
+                return 0.0
+    return 0.0
+
 
 # given an amount of bytes, upload it and return the elapsed seconds taken
 
 
-def upload_test(total_bytes: int) -> int | float:
+def upload_test(total_bytes: int) -> tuple[int, float]:
     start = timer()
 
-    r = REQ_SESSION.post(
-        UPLOAD_ENDPOINT, data=bytearray(
-            total_bytes,
-        ), headers=UPLOAD_HEADERS, verify=VERIFY_SSL, proxies=PROXY_DICT,
-    )
-    r.raise_for_status()
+    try:
+        r = REQ_SESSION.post(
+            UPLOAD_ENDPOINT,
+            data=bytearray(
+                total_bytes,
+            ),
+            headers=UPLOAD_HEADERS,
+            verify=VERIFY_SSL,
+            proxies=PROXY_DICT,
+            timeout=30,
+        )
+        r.raise_for_status()
+    except requests.RequestException as e:
+        raise RuntimeError(f'Upload test failed: {e}') from e
+
     total_time_taken = timer() - start
 
-    # trust what the server says as time taken
-    server_time_taken = get_server_timing(r.headers['Server-Timing'])
+    server_time_taken = get_server_timing(r.headers.get('Server-Timing'))
 
     if OUTPUT_FILE:
-        with open(OUTPUT_FILE, 'a', encoding='utf-8') as datafile:
-            datafile.write(
-                f'{time.time()},up,{total_bytes},{total_time_taken},{server_time_taken}\n',
-            )
+        try:
+            with open(OUTPUT_FILE, 'a', encoding='utf-8') as datafile:
+                datafile.write(
+                    f'{time.time()},up,{total_bytes},{total_time_taken},{server_time_taken}\n',
+                )
+        except OSError:
+            pass  # Silently ignore file write errors
 
-    return total_bytes, server_time_taken
+    return total_bytes, total_time_taken - server_time_taken
+
 
 # given an amount of bytes, download it and return the elapsed seconds taken
 
 
-def download_test(total_bytes: int) -> int | float:
+def download_test(total_bytes: int) -> tuple[int, float]:
     endpoint = DOWNLOAD_ENDPOINT.format(total_bytes)
     start = timer()
 
-    r = REQ_SESSION.get(endpoint, verify=VERIFY_SSL, proxies=PROXY_DICT)
-    r.raise_for_status()
+    try:
+        r = REQ_SESSION.get(endpoint, verify=VERIFY_SSL, proxies=PROXY_DICT, timeout=30)
+        r.raise_for_status()
+    except requests.RequestException as e:
+        raise RuntimeError(f'Download test failed: {e}') from e
 
     total_time_taken = timer() - start
 
     content_size = len(r.content)
-    server_time_taken = get_server_timing(r.headers['Server-Timing'])
+    server_time_taken = get_server_timing(r.headers.get('Server-Timing'))
 
     if OUTPUT_FILE:
-        with open(OUTPUT_FILE, 'a', encoding='utf-8') as datafile:
-            datafile.write(
-                f'{time.time()},down,{content_size},{total_time_taken},{server_time_taken}\n',
-            )
+        try:
+            with open(OUTPUT_FILE, 'a', encoding='utf-8') as datafile:
+                datafile.write(
+                    f'{time.time()},down,{content_size},{total_time_taken},{server_time_taken}\n',
+                )
+        except OSError:
+            pass  # Silently ignore file write errors
 
     return content_size, total_time_taken - server_time_taken
+
 
 # calculates http "latency" by measuring download of an empty payload
 
@@ -102,33 +138,45 @@ def latency_test() -> float:
     endpoint = DOWNLOAD_ENDPOINT.format(0)
 
     start = timer()
-    r = REQ_SESSION.get(endpoint, verify=VERIFY_SSL,  proxies=PROXY_DICT)
-    r.raise_for_status()
+    try:
+        r = REQ_SESSION.get(endpoint, verify=VERIFY_SSL, proxies=PROXY_DICT, timeout=30)
+        r.raise_for_status()
+    except requests.RequestException as e:
+        raise RuntimeError(f'Latency test failed: {e}') from e
 
     total_time_taken = timer() - start
-    server_time_taken = get_server_timing(r.headers['Server-Timing'])
+    server_time_taken = get_server_timing(r.headers.get('Server-Timing'))
 
     if OUTPUT_FILE:
-        with open(OUTPUT_FILE, 'a', encoding='utf-8') as datafile:
-            datafile.write(
-                f'{time.time()},down,{len(r.content)},{total_time_taken},{server_time_taken}\n',
-            )
+        try:
+            with open(OUTPUT_FILE, 'a', encoding='utf-8') as datafile:
+                datafile.write(
+                    f'{time.time()},down,{len(r.content)},{total_time_taken},{server_time_taken}\n',
+                )
+        except OSError:
+            pass  # Silently ignore file write errors
 
     return total_time_taken - server_time_taken
+
 
 # See https://speed.cloudflare.com/cdn-cgi/trace
 
 
 def get_our_country() -> str:
-    r = REQ_SESSION.get(CGI_ENDPOINT, verify=VERIFY_SSL,  proxies=PROXY_DICT)
-    r.raise_for_status()
+    try:
+        r = REQ_SESSION.get(CGI_ENDPOINT, verify=VERIFY_SSL, proxies=PROXY_DICT, timeout=30)
+        r.raise_for_status()
+    except requests.RequestException as e:
+        raise RuntimeError(f'Failed to get country info: {e}') from e
 
     cgi_data = r.text
     cgi_dict = {
-        k: v for k, v in [
+        k: v
+        for k, v in [
             line.split(
                 '=',
-            ) for line in cgi_data.splitlines()
+            )
+            for line in cgi_data.splitlines()
         ]
     }
 
@@ -136,26 +184,34 @@ def get_our_country() -> str:
 
 
 def preamble() -> str:
-    r = REQ_SESSION.get(
-        DOWNLOAD_ENDPOINT.format(
-            0,
-        ), verify=VERIFY_SSL,  proxies=PROXY_DICT,
-    )
-    r.raise_for_status()
+    try:
+        r = REQ_SESSION.get(
+            META_ENDPOINT,
+            verify=VERIFY_SSL,
+            proxies=PROXY_DICT,
+            timeout=30,
+        )
+        r.raise_for_status()
+    except requests.RequestException as e:
+        raise RuntimeError(f'Failed to get server metadata: {e}') from e
 
-    our_ip = r.headers.get('cf-meta-ip')
-    colo = r.headers.get('cf-meta-colo')
-    server_city = colo
+    meta = r.json()
+    our_ip = meta.get('clientIp') or 'Unknown'
+    our_country = meta.get('country') or 'Unknown'
+    colo_info = meta.get('colo') or {}
+    colo = colo_info.get('iata') or 'Unknown'
+    server_city = colo_info.get('city') or colo
+
+    # Look up country code from IATA in locations data
     server_country = next(
-        (
-            loc.get(
-                'cca2',
-            ) or 'Unknown' for loc in locations.SERVER_LOCATIONS if loc['iata'] == colo.upper()
-        ), 'Unknown',
+        (loc.get('cca2') or 'Unknown' for loc in locations.SERVER_LOCATIONS if loc['iata'] == colo),
+        'Unknown',
     )
-    preamble_str = f'Your IP:\t{our_ip} ({get_our_country()})\nServer loc:\t{server_city} ({colo}) - ({server_country})'
+
+    preamble_str = f'Your IP:\t{our_ip} ({our_country})\nServer loc:\t{server_city} ({colo}) - ({server_country})'
 
     return preamble_str
+
 
 # runs x amount of y-byte tests, given a test_type ("down" or "up")
 # returns a list of measurements in bits per second
@@ -172,10 +228,12 @@ def run_tests(test_type: str, bytes_to_xfer: int, iteration_count: int = 8) -> l
         else:
             return measurements
 
-        bits_per_second = (int(xferd_bytes_total) / seconds_taken) * 8
-        measurements.append(bits_per_second)
+        if seconds_taken > 0:
+            bits_per_second = (int(xferd_bytes_total) / seconds_taken) * 8
+            measurements.append(bits_per_second)
 
     return measurements
+
 
 # runs a standard test of upload and download, similar to what
 # simulates what is ran on speed.cloudflare.com
@@ -202,8 +260,8 @@ def run_standard_test(
     latency = percentile(LATENCY_MEASUREMENTS, 50)
     jitter = statistics.stdev(LATENCY_MEASUREMENTS)
     if verbose:
-        print(f"{'Latency:':<16} {latency:.2f} ms")
-        print(f"{'Jitter:':<16} {jitter:.2f} ms")
+        print(f'{"Latency:":<16} {latency:.2f} ms')
+        print(f'{"Jitter:":<16} {jitter:.2f} ms')
         print('Running speed tests...\n')
 
     first_dl_test, first_ul_test = True, True
@@ -214,8 +272,8 @@ def run_standard_test(
     # The SLOWEST test should take no longer than 30 seconds
     for i in range(0, len(measurement_sizes)):
         measurement = measurement_sizes[i]
-        download_test_count = (-2 * i + 12) 	# this is how the website does it
-        upload_test_count = (-2 * i + 10) 		# this is how the website does it
+        download_test_count = -2 * i + 12  # this is how the website does it
+        upload_test_count = -2 * i + 10  # this is how the website does it
         total_download_bytes = measurement * download_test_count
         total_upload_bytes = measurement * upload_test_count
 
@@ -229,16 +287,21 @@ def run_standard_test(
             # print(f"Testing download ({measurement / 1_000_000:.2f}MiB) ({download_test_count} time(s))")
             DOWNLOAD_MEASUREMENTS += run_tests(
                 'down',
-                measurement, download_test_count,
+                measurement,
+                download_test_count,
             )
-            current_down_speed_mbps = percentile(
-                DOWNLOAD_MEASUREMENTS, measurement_percentile,
-            ) / 1_000_000
+            current_down_speed_mbps = (
+                percentile(
+                    DOWNLOAD_MEASUREMENTS,
+                    measurement_percentile,
+                )
+                / 1_000_000
+            )
             if verbose:
                 # print(f"Current down: {current_down_speed_mbps:.2f} Mbit/sec")
                 print(
-                    f"{'Current speeds:':<24} {'Down: '}{current_down_speed_mbps:.2f} Mbit/sec\t"
-                    f"{'Up: '}{current_up_speed_mbps:.2f} Mbit/sec",
+                    f'{"Current speeds:":<24} {"Down: "}{current_down_speed_mbps:.2f} Mbit/sec\t'
+                    f'{"Up: "}{current_up_speed_mbps:.2f} Mbit/sec',
                 )
 
         if not first_ul_test:
@@ -251,23 +314,28 @@ def run_standard_test(
             # print(f"Testing upload ({measurement / 1_000_000:.2f}MiB) ({upload_test_count} time(s))")
             UPLOAD_MEASUREMENTS += run_tests(
                 'up',
-                measurement, upload_test_count,
+                measurement,
+                upload_test_count,
             )
-            current_up_speed_mbps = percentile(
-                UPLOAD_MEASUREMENTS, measurement_percentile,
-            ) / 1_000_000
+            current_up_speed_mbps = (
+                percentile(
+                    UPLOAD_MEASUREMENTS,
+                    measurement_percentile,
+                )
+                / 1_000_000
+            )
             if verbose:
                 # print(f"Current up: {current_up_speed_mbps:.2f} Mbit/sec")
                 print(
-                    f"{'Current speeds:':<24} {'Down: '}{current_down_speed_mbps:.2f} Mbit/sec\t"
-                    f"{'Up: '}{current_up_speed_mbps:.2f} Mbit/sec",
+                    f'{"Current speeds:":<24} {"Down: "}{current_down_speed_mbps:.2f} Mbit/sec\t'
+                    f'{"Up: "}{current_up_speed_mbps:.2f} Mbit/sec',
                 )
 
     # all raw measurements are in bits per second
     pctile_download = percentile(DOWNLOAD_MEASUREMENTS, measurement_percentile)
     pctile_upload = percentile(UPLOAD_MEASUREMENTS, measurement_percentile)
-    download_stdev = statistics.stdev(DOWNLOAD_MEASUREMENTS)
-    upload_stdev = statistics.stdev(UPLOAD_MEASUREMENTS)
+    download_stdev = statistics.stdev(DOWNLOAD_MEASUREMENTS) if len(DOWNLOAD_MEASUREMENTS) >= 2 else 0.0
+    upload_stdev = statistics.stdev(UPLOAD_MEASUREMENTS) if len(UPLOAD_MEASUREMENTS) >= 2 else 0.0
 
     return {
         'download_measurements': DOWNLOAD_MEASUREMENTS,
@@ -315,26 +383,25 @@ def main(argv=None) -> int:
 
     # Taken from speed.cloudflare.com
     # byte count for each test, ranging from 100KB to 250MB
-    measurement_sizes =\
-        [
-            100_000,
-            1_000_000,
-            10_000_000,
-            25_000_000,
-            100_000_000,
-            250_000_000,
-        ]
+    measurement_sizes = [
+        100_000,
+        1_000_000,
+        10_000_000,
+        25_000_000,
+        100_000_000,
+        250_000_000,
+    ]
 
     speeds = run_standard_test(measurement_sizes, percentile, True, patience)
 
     d = speeds['download_speed']
     u = speeds['upload_speed']
     d_s = speeds['download_stdev']  # noqa
-    u_s = speeds['upload_stdev']   # noqa
+    u_s = speeds['upload_stdev']  # noqa
 
     print(
-        f"{args.percentile}{'th percentile results:':<24} Down: {d/1_000_000:.2f} Mbit/sec\t"
-        f'Up: {u/1_000_000:.2f} Mbit/sec',
+        f'{args.percentile}{"th percentile results:":<24} Down: {d / 1_000_000:.2f} Mbit/sec\t'
+        f'Up: {u / 1_000_000:.2f} Mbit/sec',
     )
 
     return 0

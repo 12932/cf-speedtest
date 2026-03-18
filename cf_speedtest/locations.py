@@ -1,5 +1,6 @@
 # https://speed.cloudflare.com/locations
 from __future__ import annotations
+
 SERVER_LOCATIONS = [
     {
         'iata': 'TIA',

@@ -34,13 +34,15 @@ def valid_percentile(s: str) -> int:
 
 def add_run_options(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument(
-        '--output', '-o',
+        '--output',
+        '-o',
         type=str,
         help='The file to output the csv data of measurements to',
     )
 
     parser.add_argument(
-        '--percentile', '-p',
+        '--percentile',
+        '-p',
         default=90,
         type=valid_percentile,
         help=(
@@ -50,7 +52,8 @@ def add_run_options(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        '--verifyssl', '-k',
+        '--verifyssl',
+        '-k',
         default=True,
         type=str_to_bool,
         help=(
@@ -60,12 +63,11 @@ def add_run_options(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        '--proxy', '-x',
+        '--proxy',
+        '-x',
         default=None,
         type=str,
-        help=(
-            'Use the specified proxy. Supports HTTP/HTTPS/SOCKS5 with or without authentication'
-        ),
+        help=('Use the specified proxy. Supports HTTP/HTTPS/SOCKS5 with or without authentication'),
     )
 
     parser.add_argument(

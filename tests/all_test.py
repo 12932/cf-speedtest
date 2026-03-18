@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from cf_speedtest import speedtest
 
 
@@ -12,13 +14,12 @@ def test_preamble():
 
 
 def test_main():
-    assert speedtest.main() == 0
+    assert speedtest.main([]) == 0
 
 
-'''python
+@pytest.mark.skip(reason='Hardcoded proxy server is no longer available')
 def test_proxy():
-    assert cf_speedtest.main(['--proxy', '100.24.216.83:80']) == 0
-'''
+    assert speedtest.main(['--proxy', '100.24.216.83:80']) == 0
 
 
 def test_nossl():
