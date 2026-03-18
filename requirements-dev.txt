@@ -1,3 +1,0 @@
-pre-commit
-requests[socks]
-types-requests

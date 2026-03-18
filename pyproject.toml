@@ -1,0 +1,49 @@
+[project]
+name = "cf-speedtest"
+version = "0.2.0"
+description = "Command-line internet speed test using Cloudflare"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "wilbo007", email = "wilbo007@protonmail.ch" }]
+keywords = ["speedtest", "cloudflare", "network", "cli"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+requires-python = ">=3.10"
+dependencies = ["requests[socks]>=2.22.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "pre-commit>=3.0", "types-requests"]
+
+[dependency-groups]
+dev = ["pytest>=7.0", "pre-commit>=3.0", "types-requests"]
+
+[project.urls]
+Homepage = "https://github.com/12932/cf-speedtest"
+Repository = "https://github.com/12932/cf-speedtest"
+
+[project.scripts]
+cf-speedtest = "cf_speedtest.speedtest:main"
+cf_speedtest = "cf_speedtest.speedtest:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cf_speedtest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.format]
+quote-style = "single"
