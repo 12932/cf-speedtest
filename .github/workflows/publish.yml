@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.0.1
       - name: Check tag matches pyproject version
         run: |
           version="$(uv version --short)"
@@ -37,7 +37,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.0.1
       - uses: actions/download-artifact@v8
         with:
           name: dist
