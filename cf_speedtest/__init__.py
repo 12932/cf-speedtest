@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-import sys
+from importlib.metadata import PackageNotFoundError, version
 
-if sys.hexversion < 0x3060000:
-    sys.exit('Python 3.6+ required')
+try:
+    __version__ = version('cf-speedtest')
+except PackageNotFoundError:  # pragma: no cover - running from a source checkout without install
+    __version__ = '0.0.0+unknown'

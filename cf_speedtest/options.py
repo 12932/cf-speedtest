@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 
+from cf_speedtest import __version__
+
 
 def str_to_bool(s: str) -> bool:
     if isinstance(s, bool):
@@ -22,7 +24,7 @@ def valid_percentile(s: str) -> int:
     except ValueError:
         raise argparse.ArgumentTypeError(
             f'Expected integer between 0 and 100, received {s!r}',
-        )
+        ) from None
 
     if not (0 <= value <= 100):
         raise argparse.ArgumentTypeError(
@@ -33,6 +35,13 @@ def valid_percentile(s: str) -> int:
 
 
 def add_run_options(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    parser.add_argument(
+        '--version',
+        '-V',
+        action='version',
+        version=f'%(prog)s {__version__}',
+    )
+
     parser.add_argument(
         '--output',
         '-o',
@@ -72,9 +81,27 @@ def add_run_options(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
 
     parser.add_argument(
         '--testpatience',
+        '-t',
         type=int,
         default=20,
-        help='The longest time to wait for an individual test to run',
+        help=(
+            'The longest time (seconds) to wait for an individual test to run. '
+            'Larger transfer sizes that would exceed this are skipped. Ignored with --disableskipping'
+        ),
+    )
+
+    parser.add_argument(
+        '--disableskipping',
+        '-s',
+        action='store_true',
+        help='Run every transfer size regardless of measured speed. This ignores --testpatience',
+    )
+
+    parser.add_argument(
+        '--json',
+        '-j',
+        action='store_true',
+        help='Print results as a single JSON document once the test finishes, instead of live progress',
     )
 
     return parser
