@@ -7,4 +7,3 @@
 /.tox/log
 /cf_speedtest/utime.exe
 .venv/
-uv.lock

@@ -1,0 +1,45 @@
+# Publishes to PyPI via trusted publishing (OIDC) - no API token needed.
+# One-time setup on https://pypi.org/manage/project/cf-speedtest/settings/publishing/ :
+#   owner: 12932, repository: cf-speedtest, workflow: publish.yml, environment: pypi
+# Then create a GitHub release whose tag is v<version> (e.g. v0.3.0) to ship it.
+name: Publish to PyPI
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+      - name: Check tag matches pyproject version
+        run: |
+          version="$(uv version --short)"
+          test "v${version}" = "${GITHUB_REF_NAME}" || {
+            echo "tag ${GITHUB_REF_NAME} does not match pyproject version ${version}" >&2
+            exit 1
+          }
+      - run: uv build
+      - run: uvx twine check dist/*
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/cf-speedtest/
+    permissions:
+      id-token: write
+    steps:
+      - uses: astral-sh/setup-uv@v10
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      - run: uv publish --trusted-publishing always

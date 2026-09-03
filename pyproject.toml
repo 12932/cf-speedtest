@@ -1,6 +1,6 @@
 [project]
 name = "cf-speedtest"
-version = "0.2.0"
+version = "0.3.0"
 description = "Command-line internet speed test using Cloudflare"
 readme = "README.md"
 license = { text = "MIT" }
@@ -18,19 +18,23 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = ["requests[socks]>=2.22.0"]
 
-[project.optional-dependencies]
-dev = ["pytest>=7.0", "pre-commit>=3.0", "types-requests"]
-
-[dependency-groups]
-dev = ["pytest>=7.0", "pre-commit>=3.0", "types-requests"]
-
 [project.urls]
 Homepage = "https://github.com/12932/cf-speedtest"
 Repository = "https://github.com/12932/cf-speedtest"
+Changelog = "https://github.com/12932/cf-speedtest/blob/master/CHANGELOG.md"
+Issues = "https://github.com/12932/cf-speedtest/issues"
 
 [project.scripts]
 cf-speedtest = "cf_speedtest.speedtest:main"
 cf_speedtest = "cf_speedtest.speedtest:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.12",
+    "pre-commit>=4.0",
+    "types-requests",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -41,9 +45,19 @@ packages = ["cf_speedtest"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "network: talks to the real speed.cloudflare.com (deselect with -m 'not network')",
+]
 
 [tool.ruff]
 line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+required-imports = ["from __future__ import annotations"]
 
 [tool.ruff.format]
 quote-style = "single"

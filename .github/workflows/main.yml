@@ -5,14 +5,51 @@ on:
     branches: [master]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - run: uv sync --locked --dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
   test:
     strategy:
+      fail-fast: false
       matrix:
         python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
-      - run: uv python install ${{ matrix.python-version }}
-      - run: uv sync --dev
-      - run: uv run pytest
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --locked --dev
+      - run: uv run pytest -m "not network"
+
+  # Hits speed.cloudflare.com for real, so run it once rather than per Python version.
+  network-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - run: uv sync --locked --dev
+      - run: uv run pytest -m network
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - run: uv build
+      - run: uvx twine check dist/*
+      - name: Smoke test the wheel
+        run: uv run --isolated --no-project --with dist/*.whl cf-speedtest --version
